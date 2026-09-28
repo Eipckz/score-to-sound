@@ -10,7 +10,7 @@ const DEMO = [
   { pitch:'B4', beats:1.5 }, { pitch:'A4', beats:.5 }, { pitch:'G4', beats:2 },
   { pitch:'rest', beats:1 }, { pitch:'F#4', beats:1 }, { pitch:'E4', beats:1 }, { pitch:'D4', beats:.5 }, { pitch:'C#4', beats:.5 }, { pitch:'B3', beats:1 }, { pitch:'C#4', beats:.5 }, { pitch:'D4', beats:.5 }, { pitch:'E4', beats:1 }
 ]
-const NOTE_OPTIONS = ['C3','D3','E3','F#3','G3','A3','B3','C4','D4','E4','F#4','G4','A4','B4','C5','D5','E5','F#5','G5']
+const NOTE_OPTIONS = Array.from({length:5},(_,oct)=>['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].map(n=>`${n}${oct+2}`)).flat()
 const durName = b => b >= 4 ? 'w' : b >= 2 ? 'h' : b >= 1 ? 'q' : b >= .5 ? '8' : '16'
 const vfKey = p => p === 'rest' ? 'b/4' : `${p[0].toLowerCase()}${p.includes('#') ? '#' : ''}/${p.slice(-1)}`
 const copyNotes = ns => ns.map(n=>({...n}))
@@ -81,10 +81,9 @@ function App(){
    if(ac.state==='suspended') ac.resume()
    const midi=(parseInt(pitch.slice(-1))+1)*12+({C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11}[pitch.slice(0,-1)]??0)
    const freq=440*Math.pow(2,(midi-69)/12)
-   const osc=ac.createOscillator(), gain=ac.createGain()
-   osc.type=tone==='organ'?'sine':tone==='bell'?'triangle':'triangle'; osc.frequency.value=freq
-   gain.gain.setValueAtTime(0,ac.currentTime); gain.gain.linearRampToValueAtTime(volume*.32,ac.currentTime+.018); gain.gain.exponentialRampToValueAtTime(.001,ac.currentTime+Math.max(.08,beats*60/bpm-.035))
-   osc.connect(gain);gain.connect(ac.destination);osc.start();osc.stop(ac.currentTime+beats*60/bpm)
+   const end=ac.currentTime+beats*60/bpm
+   const partials=tone==='organ'?[{ratio:1,level:.25,type:'sine'},{ratio:2,level:.08,type:'sine'}]:tone==='bell'?[{ratio:1,level:.2,type:'sine'},{ratio:2.7,level:.08,type:'sine'},{ratio:4.1,level:.035,type:'sine'}]:[{ratio:1,level:.24,type:'triangle'},{ratio:2,level:.055,type:'sine'},{ratio:3,level:.02,type:'sine'}]
+   partials.forEach(partial=>{const osc=ac.createOscillator(),gain=ac.createGain();osc.type=partial.type;osc.frequency.value=freq*partial.ratio;const peak=volume*partial.level;gain.gain.setValueAtTime(.0001,ac.currentTime);gain.gain.exponentialRampToValueAtTime(Math.max(.001,peak),ac.currentTime+.012);gain.gain.exponentialRampToValueAtTime(.0001,Math.max(ac.currentTime+.06,end-.025));osc.connect(gain);gain.connect(ac.destination);osc.start();osc.stop(end)})
  }
  function playFrom(index=0){stop(); if(!notes.length)return; setPlaying(true);playingRef.current=true;currentRef.current=index; const step=()=>{if(!playingRef.current)return; const i=currentRef.current;if(i>=notes.length){stop();return} setPlayingIndex(i);sound(notes[i].pitch,notes[i].beats);currentRef.current=i+1;timerRef.current=setTimeout(step,notes[i].beats*60000/bpm)};step()}
  function seek(index){if(playing)playFrom(index);else setPlayingIndex(index)}
